@@ -1,142 +1,174 @@
-import React, { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, TrendingUp, AlertCircle, Award } from "lucide-react";
+import { Check, X, Award, HelpCircle, RefreshCw, BookOpen } from "lucide-react";
 
-interface CoinCollectorGameProps {
+interface QuizGameProps {
   darkMode: boolean;
   onFinish?: (score: number) => void;
 }
 
-// Financial tips that appear when collecting coins
-const FINANCE_TIPS = [
-  "Save at least 20% of your income for long-term goals.",
-  "Pay off high-interest debt before investing.",
-  "Build an emergency fund covering 3-6 months of expenses.",
-  "Start investing early to benefit from compound interest.",
-  "Don't try to time the market - invest regularly.",
-  "Live below your means to build wealth over time.",
-  "Track your spending to identify savings opportunities.",
-  "Set specific financial goals with deadlines.",
-  "Review your budget regularly and adjust as needed.",
-  "Diversify your investments to reduce risk.",
+// Quiz questions about financial literacy
+const QUIZ_QUESTIONS = [
+  {
+    question: "What is the recommended percentage of income to save?",
+    options: ["5%", "10-15%", "20%", "50%"],
+    correctAnswer: "20%",
+    explanation:
+      "Financial experts recommend saving at least 20% of your income for long-term financial security.",
+  },
+  {
+    question:
+      "Which type of investment typically has the highest long-term returns?",
+    options: ["Savings accounts", "Bonds", "Stocks", "Certificates of deposit"],
+    correctAnswer: "Stocks",
+    explanation:
+      "While stocks have higher volatility in the short term, they historically provide the highest returns over the long run.",
+  },
+  {
+    question: "What is an emergency fund?",
+    options: [
+      "Money set aside for vacations",
+      "Savings for 3-6 months of expenses",
+      "Investment in high-risk stocks",
+      "Money for impulse purchases",
+    ],
+    correctAnswer: "Savings for 3-6 months of expenses",
+    explanation:
+      "An emergency fund should cover 3-6 months of essential expenses to protect against unexpected events like job loss or medical emergencies.",
+  },
+  {
+    question: "What is compound interest?",
+    options: [
+      "Interest paid only on the principal amount",
+      "Interest paid on both principal and accumulated interest",
+      "Interest that decreases over time",
+      "A fixed interest rate for loans",
+    ],
+    correctAnswer: "Interest paid on both principal and accumulated interest",
+    explanation:
+      "Compound interest is when you earn interest on both your initial investment and on the interest you've already earned, accelerating growth over time.",
+  },
+  {
+    question: "Which is generally NOT a good debt?",
+    options: [
+      "Mortgage for a home",
+      "Student loan for education",
+      "High-interest credit card debt",
+      "Small business loan",
+    ],
+    correctAnswer: "High-interest credit card debt",
+    explanation:
+      "High-interest credit card debt is typically used for consumption rather than investments and can quickly spiral due to compounding interest rates.",
+  },
+  {
+    question: "What is a good credit score in the US?",
+    options: ["Below 600", "600-670", "670-740", "740-850"],
+    correctAnswer: "740-850",
+    explanation:
+      "Credit scores of 740 and higher are generally considered very good to excellent, qualifying for the best terms on loans and credit.",
+  },
+  {
+    question: "What is the best age to start saving for retirement?",
+    options: ["In your 20s", "In your 30s", "In your 40s", "In your 50s"],
+    correctAnswer: "In your 20s",
+    explanation:
+      "Starting in your 20s gives your investments the most time to compound and grow, requiring less monthly savings to reach the same retirement goals.",
+  },
+  {
+    question: "What is diversification in investing?",
+    options: [
+      "Putting all money in one investment",
+      "Investing only in stocks",
+      "Spreading investments across different asset classes",
+      "Changing investments frequently",
+    ],
+    correctAnswer: "Spreading investments across different asset classes",
+    explanation:
+      "Diversification reduces risk by spreading investments across various asset classes that may perform differently under the same market conditions.",
+  },
+  {
+    question: "What is the primary purpose of a budget?",
+    options: [
+      "To limit your spending on enjoyable things",
+      "To track where your money goes and plan accordingly",
+      "To impress financial advisors",
+      "To calculate how much you can borrow",
+    ],
+    correctAnswer: "To track where your money goes and plan accordingly",
+    explanation:
+      "A budget helps you understand your cash flow, prioritize spending, and ensure you're meeting savings goals and living within your means.",
+  },
+  {
+    question: "What is the rule of 72 in finance?",
+    options: [
+      "A tax regulation",
+      "A formula to estimate how long it takes to double money",
+      "The retirement age in some countries",
+      "Maximum debt-to-income ratio",
+    ],
+    correctAnswer: "A formula to estimate how long it takes to double money",
+    explanation:
+      "The Rule of 72 is a simple way to determine how long it'll take for your investment to double: divide 72 by the annual rate of return.",
+  },
 ];
 
-// Bad financial decisions to avoid
-const BAD_DECISIONS = [
-  "Carrying credit card balances month to month",
-  "Taking payday loans with high interest",
-  "Buying a car you can't afford",
-  "Ignoring your retirement planning",
-  "Making impulse purchases regularly",
-];
-
-const CoinCollectorGame: React.FC<CoinCollectorGameProps> = ({
-  darkMode,
-  onFinish,
-}) => {
+const FinancialQuizGame: React.FC<QuizGameProps> = ({ darkMode, onFinish }) => {
   // Game state
   const [gameStarted, setGameStarted] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [currentTip, setCurrentTip] = useState("");
-  const [showTip, setShowTip] = useState(false);
-  const [obstacleHit, setObstacleHit] = useState("");
-  const [showObstacleMessage, setShowObstacleMessage] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
   const [highScore, setHighScore] = useState(() => {
-    const saved = localStorage.getItem("financeGameHighScore");
+    const saved = localStorage.getItem("financeQuizHighScore");
     return saved ? parseInt(saved) : 0;
   });
-
-  // Three.js references
-  const mountRef = useRef<HTMLDivElement>(null);
-  const frameIdRef = useRef<number | null>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const playerRef = useRef<THREE.Mesh | null>(null);
-  const coinsRef = useRef<THREE.Mesh[]>([]);
-  const obstaclesRef = useRef<THREE.Mesh[]>([]);
-  const directionRef = useRef({ x: 0, z: 0 });
-  const lastTimeRef = useRef(0);
+  const [quizQuestions, setQuizQuestions] = useState(QUIZ_QUESTIONS);
 
   // Start the game
   const startGame = () => {
+    // Shuffle questions for each game
+    const shuffledQuestions = [...QUIZ_QUESTIONS].sort(
+      () => Math.random() - 0.5
+    );
+    setQuizQuestions(shuffledQuestions.slice(0, 5)); // Take only 5 questions per game
     setGameStarted(true);
-    setScore(0);
-    setTimeLeft(60);
     setGameEnded(false);
+    setCurrentQuestionIndex(0);
+    setScore(0);
+    setSelectedAnswer(null);
+    setShowExplanation(false);
   };
 
-  // Handle game controls
-  useEffect(() => {
-    if (!gameStarted || gameEnded) return;
+  // Handle answer selection
+  const handleAnswerSelect = (answer: string) => {
+    if (selectedAnswer) return; // Prevent changing answer after selection
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case "ArrowUp":
-        case "w":
-          directionRef.current.z = -1;
-          break;
-        case "ArrowDown":
-        case "s":
-          directionRef.current.z = 1;
-          break;
-        case "ArrowLeft":
-        case "a":
-          directionRef.current.x = -1;
-          break;
-        case "ArrowRight":
-        case "d":
-          directionRef.current.x = 1;
-          break;
-      }
-    };
+    setSelectedAnswer(answer);
+    const currentQuestion = quizQuestions[currentQuestionIndex];
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case "ArrowUp":
-        case "ArrowDown":
-        case "w":
-        case "s":
-          directionRef.current.z = 0;
-          break;
-        case "ArrowLeft":
-        case "ArrowRight":
-        case "a":
-        case "d":
-          directionRef.current.x = 0;
-          break;
-      }
-    };
+    if (answer === currentQuestion.correctAnswer) {
+      setScore((prev) => prev + 20); // 20 points per correct answer
+      setIsCorrect(true);
+    } else {
+      setIsCorrect(false);
+    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
+    setShowExplanation(true);
+  };
 
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-    };
-  }, [gameStarted, gameEnded]);
-
-  // Timer countdown
-  useEffect(() => {
-    if (!gameStarted || gameEnded) return;
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          endGame();
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [gameStarted, gameEnded]);
+  // Move to next question
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex < quizQuestions.length - 1) {
+      setCurrentQuestionIndex((prev) => prev + 1);
+      setSelectedAnswer(null);
+      setShowExplanation(false);
+    } else {
+      endGame();
+    }
+  };
 
   // End the game
   const endGame = () => {
@@ -144,7 +176,7 @@ const CoinCollectorGame: React.FC<CoinCollectorGameProps> = ({
 
     if (score > highScore) {
       setHighScore(score);
-      localStorage.setItem("financeGameHighScore", score.toString());
+      localStorage.setItem("financeQuizHighScore", score.toString());
     }
 
     if (onFinish) {
@@ -152,369 +184,10 @@ const CoinCollectorGame: React.FC<CoinCollectorGameProps> = ({
     }
   };
 
-  // Set up the Three.js scene
-  useEffect(() => {
-    if (!mountRef.current || !gameStarted || gameEnded) return;
+  // Calculate progress percentage
+  const progressPercentage =
+    ((currentQuestionIndex + 1) / quizQuestions.length) * 100;
 
-    // Create scene
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
-    scene.background = new THREE.Color(darkMode ? 0x111827 : 0xf0f9ff);
-
-    // Create camera
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      mountRef.current.clientWidth / mountRef.current.clientHeight,
-      0.1,
-      1000
-    );
-    camera.position.set(0, 10, 10);
-    camera.lookAt(0, 0, 0);
-    cameraRef.current = camera;
-
-    // Create renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(
-      mountRef.current.clientWidth,
-      mountRef.current.clientHeight
-    );
-    mountRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-
-    // Add lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(10, 20, 15);
-    scene.add(directionalLight);
-
-    // Create ground
-    const floorGeometry = new THREE.PlaneGeometry(30, 30);
-    const floorMaterial = new THREE.MeshStandardMaterial({
-      color: darkMode ? 0x334155 : 0xdbeafe,
-      side: THREE.DoubleSide,
-      roughness: 0.8,
-    });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = Math.PI / 2;
-    floor.position.y = -0.5;
-    scene.add(floor);
-
-    // Add grid
-    const gridHelper = new THREE.GridHelper(30, 30, 0x888888, 0x444444);
-    gridHelper.position.y = -0.49;
-    scene.add(gridHelper);
-
-    // Create player (wallet)
-    const walletGeometry = new THREE.BoxGeometry(1, 0.2, 1.5);
-    const walletMaterial = new THREE.MeshStandardMaterial({
-      color: 0x4338ca,
-      roughness: 0.5,
-    });
-    const wallet = new THREE.Mesh(walletGeometry, walletMaterial);
-    wallet.position.set(0, 0, 0);
-    scene.add(wallet);
-    playerRef.current = wallet;
-
-    // Generate initial coins and obstacles
-    generateCoins(scene);
-    generateObstacles(scene);
-
-    // Animation loop
-    const animate = (time: number) => {
-      if (
-        !sceneRef.current ||
-        !cameraRef.current ||
-        !rendererRef.current ||
-        !playerRef.current
-      )
-        return;
-
-      const deltaTime = (time - lastTimeRef.current) / 1000;
-      lastTimeRef.current = time;
-
-      // Move player
-      if (playerRef.current) {
-        const moveSpeed = 5;
-        playerRef.current.position.x +=
-          directionRef.current.x * moveSpeed * deltaTime;
-        playerRef.current.position.z +=
-          directionRef.current.z * moveSpeed * deltaTime;
-
-        // Keep player in bounds
-        playerRef.current.position.x = Math.max(
-          -14,
-          Math.min(14, playerRef.current.position.x)
-        );
-        playerRef.current.position.z = Math.max(
-          -14,
-          Math.min(14, playerRef.current.position.z)
-        );
-
-        // Camera follows player
-        camera.position.x = playerRef.current.position.x;
-        camera.position.z = playerRef.current.position.z + 10;
-        camera.lookAt(playerRef.current.position);
-      }
-
-      // Check coin collisions
-      checkCoinCollisions();
-
-      // Check obstacle collisions
-      checkObstacleCollisions();
-
-      // Rotate coins
-      coinsRef.current.forEach((coin) => {
-        coin.rotation.y += 2 * deltaTime;
-      });
-
-      // Render
-      rendererRef.current.render(sceneRef.current, cameraRef.current);
-      frameIdRef.current = requestAnimationFrame(animate);
-    };
-
-    lastTimeRef.current = performance.now();
-    frameIdRef.current = requestAnimationFrame(animate);
-
-    // Handle window resize
-    const handleResize = () => {
-      if (!mountRef.current || !cameraRef.current || !rendererRef.current)
-        return;
-
-      cameraRef.current.aspect =
-        mountRef.current.clientWidth / mountRef.current.clientHeight;
-      cameraRef.current.updateProjectionMatrix();
-      rendererRef.current.setSize(
-        mountRef.current.clientWidth,
-        mountRef.current.clientHeight
-      );
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    // Cleanup function
-    return () => {
-      if (frameIdRef.current) {
-        cancelAnimationFrame(frameIdRef.current);
-      }
-
-      if (rendererRef.current && mountRef.current) {
-        mountRef.current.removeChild(rendererRef.current.domElement);
-      }
-
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [gameStarted, gameEnded, darkMode]);
-
-  // Generate coins (good financial decisions)
-  const generateCoins = (scene: THREE.Scene) => {
-    // Clear existing coins
-    coinsRef.current.forEach((coin) => scene.remove(coin));
-    coinsRef.current = [];
-
-    // Create new coins
-    const coinGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32);
-    const coinMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfcd34d,
-      metalness: 0.7,
-      roughness: 0.3,
-    });
-
-    // Add 10 coins in random positions
-    for (let i = 0; i < 10; i++) {
-      const coin = new THREE.Mesh(coinGeometry, coinMaterial);
-      coin.rotation.x = Math.PI / 2;
-
-      // Random position
-      coin.position.set(
-        (Math.random() - 0.5) * 25,
-        0,
-        (Math.random() - 0.5) * 25
-      );
-
-      scene.add(coin);
-      coinsRef.current.push(coin);
-    }
-  };
-
-  // Generate obstacles (bad financial decisions)
-  const generateObstacles = (scene: THREE.Scene) => {
-    // Clear existing obstacles
-    obstaclesRef.current.forEach((obstacle) => scene.remove(obstacle));
-    obstaclesRef.current = [];
-
-    // Create new obstacles
-    const obstacleGeometry = new THREE.SphereGeometry(0.7, 16, 16);
-    const obstacleMaterial = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      roughness: 0.7,
-      metalness: 0.2,
-    });
-
-    // Add 5 obstacles in random positions
-    for (let i = 0; i < 5; i++) {
-      const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
-
-      // Store the bad decision as a user data property
-      obstacle.userData = {
-        badDecision: BAD_DECISIONS[i % BAD_DECISIONS.length],
-      };
-
-      // Random position
-      obstacle.position.set(
-        (Math.random() - 0.5) * 25,
-        0,
-        (Math.random() - 0.5) * 25
-      );
-
-      scene.add(obstacle);
-      obstaclesRef.current.push(obstacle);
-    }
-  };
-
-  // Check for coin collisions
-  const checkCoinCollisions = () => {
-    if (!playerRef.current || !sceneRef.current) return;
-
-    const playerPos = playerRef.current.position;
-    const collisionDistance = 1.2;
-
-    for (let i = coinsRef.current.length - 1; i >= 0; i--) {
-      const coin = coinsRef.current[i];
-      const coinPos = coin.position;
-
-      const distance = Math.sqrt(
-        Math.pow(playerPos.x - coinPos.x, 2) +
-          Math.pow(playerPos.z - coinPos.z, 2)
-      );
-
-      if (distance < collisionDistance) {
-        // Collect coin
-        setScore((prev) => prev + 10);
-
-        // Remove from scene
-        sceneRef.current.remove(coin);
-        coinsRef.current.splice(i, 1);
-
-        // Show a random financial tip
-        const tip =
-          FINANCE_TIPS[Math.floor(Math.random() * FINANCE_TIPS.length)];
-        setCurrentTip(tip);
-        setShowTip(true);
-
-        setTimeout(() => {
-          setShowTip(false);
-        }, 3000);
-
-        // Create a new coin to replace the collected one
-        if (sceneRef.current) {
-          const coinGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32);
-          const coinMaterial = new THREE.MeshStandardMaterial({
-            color: 0xfcd34d,
-            metalness: 0.7,
-            roughness: 0.3,
-          });
-
-          const newCoin = new THREE.Mesh(coinGeometry, coinMaterial);
-          newCoin.rotation.x = Math.PI / 2;
-
-          // Random position away from player
-          let x, z;
-          do {
-            x = (Math.random() - 0.5) * 25;
-            z = (Math.random() - 0.5) * 25;
-          } while (
-            Math.sqrt(
-              Math.pow(playerPos.x - x, 2) + Math.pow(playerPos.z - z, 2)
-            ) < 5
-          );
-
-          newCoin.position.set(x, 0, z);
-
-          sceneRef.current.add(newCoin);
-          coinsRef.current.push(newCoin);
-        }
-      }
-    }
-  };
-
-  // Check for obstacle collisions
-  const checkObstacleCollisions = () => {
-    if (!playerRef.current || !sceneRef.current) return;
-
-    const playerPos = playerRef.current.position;
-    const collisionDistance = 1.3;
-
-    for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
-      const obstacle = obstaclesRef.current[i];
-      const obstaclePos = obstacle.position;
-
-      const distance = Math.sqrt(
-        Math.pow(playerPos.x - obstaclePos.x, 2) +
-          Math.pow(playerPos.z - obstaclePos.z, 2)
-      );
-
-      if (distance < collisionDistance) {
-        // Penalty for hitting obstacle
-        setScore((prev) => Math.max(0, prev - 5));
-
-        // Show the bad decision message
-        setObstacleHit(obstacle.userData.badDecision);
-        setShowObstacleMessage(true);
-
-        setTimeout(() => {
-          setShowObstacleMessage(false);
-        }, 3000);
-
-        // Move obstacle to a new position
-        if (sceneRef.current) {
-          // Random position away from player
-          let x, z;
-          do {
-            x = (Math.random() - 0.5) * 25;
-            z = (Math.random() - 0.5) * 25;
-          } while (
-            Math.sqrt(
-              Math.pow(playerPos.x - x, 2) + Math.pow(playerPos.z - z, 2)
-            ) < 5
-          );
-
-          obstacle.position.set(x, 0, z);
-        }
-      }
-    }
-  };
-
-  // Instructions for game controls
-  const renderInstructions = () => (
-    <div
-      className={`mb-6 p-4 rounded-lg ${
-        darkMode ? "bg-gray-800" : "bg-blue-50"
-      }`}
-    >
-      <h3
-        className={`text-lg font-bold mb-2 ${
-          darkMode ? "text-white" : "text-gray-900"
-        }`}
-      >
-        How to Play
-      </h3>
-      <ul
-        className={`list-disc pl-5 ${
-          darkMode ? "text-gray-300" : "text-gray-700"
-        }`}
-      >
-        <li>Use the arrow keys or WASD to move your wallet</li>
-        <li>Collect gold coins (good financial decisions) to gain points</li>
-        <li>Avoid red spheres (bad financial decisions) that cost points</li>
-        <li>Learn financial tips as you play</li>
-        <li>Collect as many points as possible before time runs out</li>
-      </ul>
-    </div>
-  );
-
-  // Render game UI
   return (
     <div className="flex flex-col w-full">
       {!gameStarted ? (
@@ -528,212 +201,335 @@ const CoinCollectorGame: React.FC<CoinCollectorGameProps> = ({
               darkMode ? "text-white" : "text-gray-900"
             }`}
           >
-            Financial Decision Collector
+            Financial Literacy Quiz
           </h2>
 
           <p className={`mb-6 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
-            Navigate your wallet through the financial world. Collect good
-            financial decisions while avoiding poor ones. Learn financial tips
-            and improve your money management knowledge!
+            Test your financial knowledge with this quick quiz! Answer questions
+            about saving, investing, and money management to improve your
+            financial literacy.
           </p>
 
-          {renderInstructions()}
+          <div
+            className={`mb-6 p-4 rounded-lg ${
+              darkMode ? "bg-gray-700" : "bg-blue-50"
+            }`}
+          >
+            <h3
+              className={`text-lg font-bold mb-2 ${
+                darkMode ? "text-white" : "text-gray-900"
+              }`}
+            >
+              Quiz Details
+            </h3>
+            <ul
+              className={`list-disc pl-5 ${
+                darkMode ? "text-gray-300" : "text-gray-700"
+              }`}
+            >
+              <li>5 questions about personal finance</li>
+              <li>Multiple choice format</li>
+              <li>Explanations for each answer</li>
+              <li>20 points for each correct answer</li>
+              <li>Learn as you play!</li>
+            </ul>
+          </div>
 
           <div className="flex justify-center">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={startGame}
-              className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-medium shadow-md hover:bg-indigo-700 transition-all"
+              className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-medium shadow-md hover:bg-indigo-700 transition-all flex items-center"
             >
-              Start Game
+              <BookOpen className="mr-2 h-5 w-5" />
+              Start Quiz
             </motion.button>
           </div>
         </div>
       ) : (
-        <div className="relative">
-          <div
-            className={`absolute top-4 left-4 z-10 px-4 py-2 rounded-lg ${
-              darkMode ? "bg-gray-800/90" : "bg-white/90"
-            } shadow-md backdrop-blur-sm flex items-center space-x-4`}
-          >
-            <div className="flex items-center">
-              <DollarSign
-                className={`h-5 w-5 mr-1 ${
-                  darkMode ? "text-yellow-400" : "text-yellow-500"
-                }`}
-              />
-              <span
-                className={`font-bold ${
-                  darkMode ? "text-white" : "text-gray-900"
-                }`}
-              >
-                {score}
-              </span>
-            </div>
-
-            <div className="flex items-center">
-              <TrendingUp
-                className={`h-5 w-5 mr-1 ${
-                  timeLeft > 10
-                    ? darkMode
-                      ? "text-green-400"
-                      : "text-green-500"
-                    : darkMode
-                    ? "text-red-400"
-                    : "text-red-500"
-                }`}
-              />
-              <span
-                className={`font-bold ${
-                  darkMode ? "text-white" : "text-gray-900"
-                }`}
-              >
-                {timeLeft}s
-              </span>
-            </div>
-
-            {highScore > 0 && (
-              <div className="flex items-center">
-                <Award
-                  className={`h-5 w-5 mr-1 ${
-                    darkMode ? "text-indigo-400" : "text-indigo-500"
-                  }`}
-                />
-                <span
-                  className={`${darkMode ? "text-gray-300" : "text-gray-600"}`}
-                >
-                  {highScore}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {showTip && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className={`absolute top-16 left-1/2 transform -translate-x-1/2 z-10 px-4 py-2 rounded-lg max-w-md ${
-                darkMode ? "bg-green-900/90" : "bg-green-100/90"
-              } shadow-md backdrop-blur-sm`}
-            >
-              <p
-                className={`text-sm ${
-                  darkMode ? "text-green-300" : "text-green-800"
-                }`}
-              >
-                <span className="font-bold">Financial Tip:</span> {currentTip}
-              </p>
-            </motion.div>
-          )}
-
-          {showObstacleMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className={`absolute top-16 left-1/2 transform -translate-x-1/2 z-10 px-4 py-2 rounded-lg max-w-md ${
-                darkMode ? "bg-red-900/90" : "bg-red-100/90"
-              } shadow-md backdrop-blur-sm flex items-start`}
-            >
-              <AlertCircle
-                className={`h-5 w-5 mr-2 mt-0.5 flex-shrink-0 ${
-                  darkMode ? "text-red-300" : "text-red-800"
-                }`}
-              />
-              <p
-                className={`text-sm ${
-                  darkMode ? "text-red-300" : "text-red-800"
-                }`}
-              >
-                <span className="font-bold">Bad Financial Decision:</span>{" "}
-                {obstacleHit}
-              </p>
-            </motion.div>
-          )}
-
-          <div className="w-full h-[500px]" ref={mountRef}></div>
-
-          {gameEnded && (
-            <div className="absolute inset-0 bg-black/70 flex items-center justify-center backdrop-blur-sm">
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className={`p-6 rounded-lg ${
-                  darkMode ? "bg-gray-800" : "bg-white"
-                } shadow-xl max-w-md mx-auto text-center`}
-              >
-                <h2
-                  className={`text-2xl font-bold mb-4 ${
-                    darkMode ? "text-white" : "text-gray-900"
-                  }`}
-                >
-                  Game Over!
-                </h2>
-
-                <p
-                  className={`mb-6 ${
-                    darkMode ? "text-gray-300" : "text-gray-600"
-                  }`}
-                >
-                  Your financial journey has come to an end.
-                </p>
-
-                <div className="mb-6">
-                  <p
+        <div
+          className={`p-6 rounded-lg ${
+            darkMode ? "bg-gray-800" : "bg-white"
+          } shadow-lg`}
+        >
+          {!gameEnded ? (
+            <>
+              {/* Progress bar */}
+              <div className="mb-4">
+                <div className="flex justify-between items-center mb-1">
+                  <span
                     className={`text-sm ${
                       darkMode ? "text-gray-400" : "text-gray-500"
                     }`}
                   >
-                    Final Score:
-                  </p>
-                  <p
-                    className={`text-4xl font-bold ${
-                      darkMode ? "text-white" : "text-gray-900"
+                    Question {currentQuestionIndex + 1} of{" "}
+                    {quizQuestions.length}
+                  </span>
+                  <span
+                    className={`text-sm font-medium ${
+                      darkMode ? "text-gray-300" : "text-gray-700"
                     }`}
                   >
-                    {score}
-                  </p>
+                    Score: {score}
+                  </span>
+                </div>
+                <div
+                  className={`w-full h-2 bg-gray-200 rounded-full overflow-hidden ${
+                    darkMode ? "bg-gray-700" : "bg-gray-200"
+                  }`}
+                >
+                  <div
+                    className="h-full bg-indigo-600 rounded-full transition-all duration-300"
+                    style={{ width: `${progressPercentage}%` }}
+                  ></div>
+                </div>
+              </div>
 
-                  {score === highScore && score > 0 && (
-                    <div
-                      className={`mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                        darkMode
-                          ? "bg-indigo-900/50 text-indigo-300"
-                          : "bg-indigo-100 text-indigo-800"
-                      }`}
-                    >
-                      <Award className="h-3 w-3 mr-1" /> New High Score!
-                    </div>
+              {/* Current question */}
+              <div className="mb-6">
+                <h3
+                  className={`text-xl font-bold mb-4 ${
+                    darkMode ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  {quizQuestions[currentQuestionIndex].question}
+                </h3>
+
+                <div className="space-y-3">
+                  {quizQuestions[currentQuestionIndex].options.map(
+                    (option, index) => (
+                      <motion.button
+                        key={index}
+                        whileHover={!selectedAnswer ? { scale: 1.02 } : {}}
+                        whileTap={!selectedAnswer ? { scale: 0.98 } : {}}
+                        onClick={() => handleAnswerSelect(option)}
+                        disabled={!!selectedAnswer}
+                        className={`w-full text-left p-4 rounded-lg border transition-all ${
+                          selectedAnswer
+                            ? option ===
+                              quizQuestions[currentQuestionIndex].correctAnswer
+                              ? darkMode
+                                ? "bg-green-900/50 border-green-700 text-green-200"
+                                : "bg-green-100 border-green-500 text-green-800"
+                              : option === selectedAnswer
+                              ? darkMode
+                                ? "bg-red-900/50 border-red-700 text-red-200"
+                                : "bg-red-100 border-red-500 text-red-800"
+                              : darkMode
+                              ? "bg-gray-700 border-gray-600 text-gray-300"
+                              : "bg-gray-50 border-gray-200 text-gray-500"
+                            : darkMode
+                            ? "bg-gray-700 border-gray-600 text-white hover:bg-gray-600"
+                            : "bg-gray-50 border-gray-200 text-gray-800 hover:bg-gray-100"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span>{option}</span>
+                          {selectedAnswer &&
+                            (option ===
+                            quizQuestions[currentQuestionIndex]
+                              .correctAnswer ? (
+                              <Check className="h-5 w-5 text-green-500" />
+                            ) : option === selectedAnswer ? (
+                              <X className="h-5 w-5 text-red-500" />
+                            ) : null)}
+                        </div>
+                      </motion.button>
+                    )
                   )}
                 </div>
+              </div>
 
-                <div className="flex justify-center space-x-3">
+              {/* Explanation */}
+              {showExplanation && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mb-6 p-4 rounded-lg ${
+                    isCorrect
+                      ? darkMode
+                        ? "bg-green-900/30 border border-green-800"
+                        : "bg-green-50 border border-green-200"
+                      : darkMode
+                      ? "bg-red-900/30 border border-red-800"
+                      : "bg-red-50 border border-red-200"
+                  }`}
+                >
+                  <div className="flex items-start">
+                    <div
+                      className={`p-1 rounded-full ${
+                        isCorrect
+                          ? darkMode
+                            ? "bg-green-800"
+                            : "bg-green-100"
+                          : darkMode
+                          ? "bg-red-800"
+                          : "bg-red-100"
+                      } mr-3 mt-0.5 flex-shrink-0`}
+                    >
+                      {isCorrect ? (
+                        <Check
+                          className={`h-4 w-4 ${
+                            darkMode ? "text-green-200" : "text-green-600"
+                          }`}
+                        />
+                      ) : (
+                        <X
+                          className={`h-4 w-4 ${
+                            darkMode ? "text-red-200" : "text-red-600"
+                          }`}
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <p
+                        className={`font-medium ${
+                          isCorrect
+                            ? darkMode
+                              ? "text-green-200"
+                              : "text-green-800"
+                            : darkMode
+                            ? "text-red-200"
+                            : "text-red-800"
+                        }`}
+                      >
+                        {isCorrect ? "Correct!" : "Incorrect!"}
+                      </p>
+                      <p
+                        className={`text-sm mt-1 ${
+                          darkMode ? "text-gray-300" : "text-gray-600"
+                        }`}
+                      >
+                        {quizQuestions[currentQuestionIndex].explanation}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Next button */}
+              {selectedAnswer && (
+                <div className="flex justify-end">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={startGame}
+                    onClick={handleNextQuestion}
                     className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium shadow-md hover:bg-indigo-700 transition-all"
                   >
-                    Play Again
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setGameStarted(false)}
-                    className={`px-6 py-2 rounded-lg font-medium shadow-md ${
-                      darkMode
-                        ? "bg-gray-700 text-white hover:bg-gray-600"
-                        : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                    } transition-all`}
-                  >
-                    Main Menu
+                    {currentQuestionIndex < quizQuestions.length - 1
+                      ? "Next Question"
+                      : "See Results"}
                   </motion.button>
                 </div>
-              </motion.div>
-            </div>
+              )}
+            </>
+          ) : (
+            // Game results
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center"
+            >
+              <h2
+                className={`text-2xl font-bold mb-4 ${
+                  darkMode ? "text-white" : "text-gray-900"
+                }`}
+              >
+                Quiz Complete!
+              </h2>
+
+              <div className="mb-8">
+                <p
+                  className={`text-lg ${
+                    darkMode ? "text-gray-300" : "text-gray-600"
+                  }`}
+                >
+                  Your Score:
+                </p>
+                <p
+                  className={`text-5xl font-bold ${
+                    darkMode ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  {score}
+                </p>
+                <p
+                  className={`mt-2 ${
+                    darkMode ? "text-gray-400" : "text-gray-500"
+                  }`}
+                >
+                  {score >= 80
+                    ? "Financial Expert! 🌟"
+                    : score >= 60
+                    ? "Good Knowledge! 👍"
+                    : score >= 40
+                    ? "Getting There! 📈"
+                    : "Keep Learning! 📚"}
+                </p>
+
+                {score === highScore && score > 0 && (
+                  <div
+                    className={`mt-4 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                      darkMode
+                        ? "bg-indigo-900/50 text-indigo-300"
+                        : "bg-indigo-100 text-indigo-800"
+                    }`}
+                  >
+                    <Award className="h-3 w-3 mr-1" /> New High Score!
+                  </div>
+                )}
+              </div>
+
+              <div
+                className={`p-4 rounded-lg ${
+                  darkMode ? "bg-gray-700" : "bg-blue-50"
+                } mb-8`}
+              >
+                <div className="flex items-start">
+                  <HelpCircle
+                    className={`h-5 w-5 mr-3 mt-0.5 flex-shrink-0 ${
+                      darkMode ? "text-blue-400" : "text-blue-500"
+                    }`}
+                  />
+                  <p
+                    className={`text-sm ${
+                      darkMode ? "text-gray-300" : "text-gray-600"
+                    }`}
+                  >
+                    Financial literacy is a journey! Regular learning and
+                    practice will help you make better financial decisions.
+                    Consider trying again to improve your score or check out our
+                    resources section for more financial education.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-center space-x-4">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={startGame}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium shadow-md hover:bg-indigo-700 transition-all flex items-center"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Try Again
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setGameStarted(false)}
+                  className={`px-6 py-2 rounded-lg font-medium shadow-md ${
+                    darkMode
+                      ? "bg-gray-700 text-white hover:bg-gray-600"
+                      : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                  } transition-all`}
+                >
+                  Main Menu
+                </motion.button>
+              </div>
+            </motion.div>
           )}
         </div>
       )}
@@ -741,4 +537,4 @@ const CoinCollectorGame: React.FC<CoinCollectorGameProps> = ({
   );
 };
 
-export default CoinCollectorGame;
+export default FinancialQuizGame;
