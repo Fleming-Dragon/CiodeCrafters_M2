@@ -152,11 +152,9 @@ function App() {
   };
 
   const handleGameFinish = (score: number) => {
-    // Convert game score to financial rewards (virtual money)
     const reward = Math.floor(score / 10);
     setGameRewards((prev) => prev + reward);
 
-    // Show toast or notification about rewards earned
     alert(`You earned ${reward} finance points from the game!`);
   };
 
