@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ParticlesBackground from "./components/particles";
+import CoinCollectorGame from "./game/game";
 
 import {
   Wallet,
@@ -14,6 +15,7 @@ import {
   DollarSign,
   Sparkles,
   Shield,
+  Gamepad2,
 } from "lucide-react";
 import {
   Chart as ChartJS,
@@ -60,6 +62,8 @@ function App() {
     category: "",
     description: "",
   });
+  const [showGame, setShowGame] = useState(false);
+  const [gameRewards, setGameRewards] = useState(0);
 
   // Auto-transition after 3 seconds
   useEffect(() => {
@@ -72,6 +76,54 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [showWelcome]);
+
+  // Load saved data
+  useEffect(() => {
+    const savedExpenses = localStorage.getItem("financeTrackerExpenses");
+    const savedBudgets = localStorage.getItem("financeTrackerBudgets");
+    const savedGameRewards = localStorage.getItem("financeGameRewards");
+
+    if (savedExpenses) {
+      setExpenses(JSON.parse(savedExpenses));
+    }
+
+    if (savedBudgets) {
+      setBudgets(JSON.parse(savedBudgets));
+    }
+
+    if (savedGameRewards) {
+      setGameRewards(parseInt(savedGameRewards));
+    }
+
+    // Check user preference for dark mode
+    const savedDarkMode = localStorage.getItem("financeTrackerDarkMode");
+    if (savedDarkMode) {
+      setDarkMode(savedDarkMode === "true");
+    } else {
+      // Check system preference
+      const prefersDarkMode = window.matchMedia(
+        "(prefers-color-scheme: dark)"
+      ).matches;
+      setDarkMode(prefersDarkMode);
+    }
+  }, []);
+
+  // Save data when it changes
+  useEffect(() => {
+    localStorage.setItem("financeTrackerExpenses", JSON.stringify(expenses));
+  }, [expenses]);
+
+  useEffect(() => {
+    localStorage.setItem("financeTrackerBudgets", JSON.stringify(budgets));
+  }, [budgets]);
+
+  useEffect(() => {
+    localStorage.setItem("financeGameRewards", gameRewards.toString());
+  }, [gameRewards]);
+
+  useEffect(() => {
+    localStorage.setItem("financeTrackerDarkMode", darkMode.toString());
+  }, [darkMode]);
 
   const categories = [
     "Food & Dining",
@@ -97,6 +149,15 @@ function App() {
     setExpenses([expense, ...expenses]);
     setNewExpense({ amount: "", category: "", description: "" });
     setShowAddExpense(false);
+  };
+
+  const handleGameFinish = (score: number) => {
+    // Convert game score to financial rewards (virtual money)
+    const reward = Math.floor(score / 10);
+    setGameRewards((prev) => prev + reward);
+
+    // Show toast or notification about rewards earned
+    alert(`You earned ${reward} finance points from the game!`);
   };
 
   const totalExpenses = expenses.reduce(
@@ -407,6 +468,15 @@ function App() {
             </div>
             <div className="flex items-center space-x-4">
               <button
+                onClick={() => setShowGame(!showGame)}
+                className={`p-2 rounded-lg ${
+                  darkMode ? "bg-gray-700" : "bg-gray-100"
+                }`}
+                title="Play Finance Game"
+              >
+                <Gamepad2 className="h-5 w-5" />
+              </button>
+              <button
                 onClick={() => setDarkMode(!darkMode)}
                 className={`p-2 rounded-lg ${
                   darkMode ? "bg-gray-700" : "bg-gray-100"
@@ -432,6 +502,66 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+        {showGame && (
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2
+                className={`text-xl font-bold ${
+                  darkMode ? "text-white" : "text-gray-900"
+                }`}
+              >
+                Financial Decision Collector
+              </h2>
+              <button
+                onClick={() => setShowGame(false)}
+                className={`p-2 rounded-lg ${
+                  darkMode ? "bg-gray-700" : "bg-gray-100"
+                }`}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <CoinCollectorGame
+              darkMode={darkMode}
+              onFinish={handleGameFinish}
+            />
+          </div>
+        )}
+
+        {/* Financial Rewards */}
+        {gameRewards > 0 && (
+          <div
+            className={`mb-8 p-4 rounded-lg ${
+              darkMode ? "bg-indigo-900/30" : "bg-indigo-50"
+            } border ${darkMode ? "border-indigo-800" : "border-indigo-200"}`}
+          >
+            <div className="flex items-center">
+              <DollarSign
+                className={`h-6 w-6 mr-2 ${
+                  darkMode ? "text-indigo-400" : "text-indigo-600"
+                }`}
+              />
+              <div>
+                <h3
+                  className={`text-lg font-medium ${
+                    darkMode ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Financial Game Rewards
+                </h3>
+                <p
+                  className={`text-sm ${
+                    darkMode ? "text-gray-300" : "text-gray-600"
+                  }`}
+                >
+                  You've earned {gameRewards} finance points by playing the
+                  financial literacy game!
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Overview Cards */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-8">
           <div
@@ -674,6 +804,22 @@ function App() {
               </ul>
             </div>
           </div>
+        </div>
+
+        {/* Financial Quotes */}
+        <div
+          className={`mt-8 p-6 ${
+            darkMode ? "bg-gray-800" : "bg-white"
+          } rounded-lg shadow-lg`}
+        >
+          <h3
+            className={`text-lg font-medium ${
+              darkMode ? "text-white" : "text-gray-900"
+            } mb-4`}
+          >
+            Today's Financial Wisdom
+          </h3>
+          <QuotesLandingPage darkMode={darkMode} />
         </div>
       </main>
 
